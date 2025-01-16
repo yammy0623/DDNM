@@ -84,7 +84,9 @@ def parse_args_and_config():
         "--add_noise",
         action="store_true"
     )
-
+    parser.add_argument("--input_root", type=str, default="/tmp2/ICML2025", help="The root folder of input images")
+    # parser.add_argument("--eval_model_name", type=str, default="new_SR_2agent_A2C_10")
+    parser.add_argument("--start_T", type=int, default=500)
     
 
     args = parser.parse_args()
@@ -167,7 +169,15 @@ def main():
     except Exception:
         logging.error(traceback.format_exc())
 
-    return 0
+
+    # with open(output_path, 'a') as file:
+    #     file.write(f"time step sequence = {time_step_sequence}\n")
+    #     file.write("Total Average SSIM: %.3f" % avg_ssim)
+    #     file.write("\n")
+    #     file.write("Total Average PSNR: %.3f" % avg_psnr)
+    #     file.write("\n")
+
+    # return 0
 
 
 if __name__ == "__main__":
