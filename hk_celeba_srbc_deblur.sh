@@ -1,7 +1,8 @@
-export CUDA_VISIBLE_DEVICES=1
 INPUT_ROOT="/tmp2/ICML2025"
 EXP="/tmp2/ICML2025/ddnm"
 IMAGE_FOLDER="/tmp2/ICML2025/ddnm/celeba"
+export CUDA_VISIBLE_DEVICES=1
+
 python main.py --ni --config  celeba_hq.yml --exp $EXP --path_y  celeba_hq --eta 0.85 --deg "sr_bicubic" --deg_scale 4 --sigma_y 0. -i $IMAGE_FOLDER --input_root $INPUT_ROOT --step_nums 5
 python main.py --ni --config  celeba_hq.yml --exp $EXP --path_y  celeba_hq --eta 0.85 --deg "sr_bicubic" --deg_scale 4 --sigma_y 0. -i $IMAGE_FOLDER --input_root $INPUT_ROOT --step_nums 10
 python main.py --ni --config  celeba_hq.yml --exp $EXP --path_y  celeba_hq --eta 0.85 --deg "sr_bicubic" --deg_scale 4 --sigma_y 0. -i $IMAGE_FOLDER --input_root $INPUT_ROOT --step_nums 20
