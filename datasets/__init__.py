@@ -143,7 +143,7 @@ def get_dataset(args, config):
             test_dataset = dataset
         else:
             dataset = torchvision.datasets.ImageFolder(
-                os.path.join(args.exp, "datasets", args.path_y),#os.path.join(args.exp, "datasets", "celeba_hq"),
+                os.path.join(os.path.join(args.input_root, 'celeba_hq')),#os.path.join(args.exp, "datasets", "celeba_hq"),
                 transform=transforms.Compose([transforms.Resize([config.data.image_size, config.data.image_size]),
                                               transforms.ToTensor()])
             )
@@ -165,8 +165,9 @@ def get_dataset(args, config):
 
     elif config.data.dataset == 'ImageNet':
         # only use validation dataset here
-        
         if config.data.subset_1k:
+            print('here')        
+        
             from datasets.imagenet_subset import ImageDataset
             train_dataset = ImageDataset(os.path.join(args.input_root, 'ImageNet', 'train'),
                      image_size=config.data.image_size,
@@ -174,6 +175,7 @@ def get_dataset(args, config):
             test_dataset = ImageDataset(os.path.join(args.input_root, 'ImageNet', 'val'),
                      image_size=config.data.image_size,
                      normalize=False)
+            dataset = train_dataset
             # dataset = ImageDataset(os.path.join(args.exp, 'datasets', 'imagenet', 'imagenet'),
             #          os.path.join(args.exp, 'imagenet_val_1k.txt'),
             #          image_size=config.data.image_size,

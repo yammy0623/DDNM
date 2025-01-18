@@ -13,6 +13,7 @@ from functions.ckpt_util import get_ckpt_path, download
 from functions.svd_ddnm import ddnm_diffusion, ddnm_plus_diffusion
 
 import torchvision.utils as tvu
+from skimage.metrics import structural_similarity
 
 from guided_diffusion.models import Model
 from guided_diffusion.script_util import create_model, create_classifier, classifier_defaults, args_to_dict
@@ -298,6 +299,7 @@ class Diffusion(object):
         idx_init = args.subset_start
         idx_so_far = args.subset_start
         avg_psnr = 0.0
+        avg_ssim = 0.0
         pbar = tqdm.tqdm(val_loader)
         for x_orig, classes in pbar:
             x_orig = x_orig.to(self.device)
@@ -340,7 +342,9 @@ class Diffusion(object):
                                                config.time_travel.travel_length, 
                                                config.time_travel.travel_repeat,
                                               )
+                print(times)
                 time_pairs = list(zip(times[:-1], times[1:]))
+                print(time_pairs)
                 
                 
                 # reverse diffusion sampling
@@ -404,14 +408,25 @@ class Diffusion(object):
             orig = inverse_data_transform(config, x_orig[0])
             mse = torch.mean((x[0].to(self.device) - orig) ** 2)
             psnr = 10 * torch.log10(1 / mse)
+            ssim = structural_similarity(
+                x.squeeze(0).cpu().numpy(),
+                orig.squeeze(0).cpu().numpy(),
+                win_size=21,
+                channel_axis=0,
+                data_range=1.0
+            )
             avg_psnr += psnr
+            avg_ssim += ssim
 
             idx_so_far += y.shape[0]
 
             pbar.set_description("PSNR: %.2f" % (avg_psnr / (idx_so_far - idx_init)))
+            pbar.set_description("SSIM: %.2f" % (avg_ssim / (idx_so_far - idx_init)))
 
         avg_psnr = avg_psnr / (idx_so_far - idx_init)
+        avg_ssim = avg_ssim / (idx_so_far - idx_init)
         print("Total Average PSNR: %.2f" % avg_psnr)
+        print("Total Average SSIM: %.2f" % avg_ssim)
         print("Number of samples: %d" % (idx_so_far - idx_init))
         
         
@@ -528,7 +543,12 @@ class Diffusion(object):
         idx_init = args.subset_start
         idx_so_far = args.subset_start
         avg_psnr = 0.0
+        avg_ssim  = 0.0
+
         pbar = tqdm.tqdm(val_loader)
+
+        self.args.image_folder = os.path.join(self.args.image_folder, self.args.path_y + "_" + self.args.deg + "_step" + str(self.args.step_nums))
+        print(f'Save to {self.args.image_folder}') 
         for x_orig, classes in pbar:
             x_orig = x_orig.to(self.device)
             x_orig = data_transform(self.config, x_orig)
@@ -554,6 +574,7 @@ class Diffusion(object):
 
             Apy = A_funcs.A_pinv(y).view(y.shape[0], config.data.channels, self.config.data.image_size,
                                                 self.config.data.image_size)
+            x = Apy
 
             if deg[:6] == 'deblur':
                 Apy = y.view(y.shape[0], config.data.channels, self.config.data.image_size,
@@ -564,50 +585,72 @@ class Diffusion(object):
                 Apy += A_funcs.A_pinv(A_funcs.A(torch.ones_like(Apy))).reshape(*Apy.shape) - 1
 
             os.makedirs(os.path.join(self.args.image_folder, "Apy"), exist_ok=True)
-            for i in range(len(Apy)):
-                tvu.save_image(
-                    inverse_data_transform(config, Apy[i]),
-                    os.path.join(self.args.image_folder, f"Apy/Apy_{idx_so_far + i}.png")
-                )
-                tvu.save_image(
-                    inverse_data_transform(config, x_orig[i]),
-                    os.path.join(self.args.image_folder, f"Apy/orig_{idx_so_far + i}.png")
-                )
+            # for i in range(len(Apy)):
+            #     tvu.save_image(
+            #         inverse_data_transform(config, Apy[i]),
+            #         os.path.join(self.args.image_folder, f"Apy/Apy_{idx_so_far + i}.png")
+            #     )
+            #     tvu.save_image(
+            #         inverse_data_transform(config, x_orig[i]),
+            #         os.path.join(self.args.image_folder, f"Apy/orig_{idx_so_far + i}.png")
+            #     )
 
             #Start DDIM
-            x = torch.randn(
-                y.shape[0],
-                config.data.channels,
-                config.data.image_size,
-                config.data.image_size,
-                device=self.device,
-            )
+            # x = torch.randn(
+            #     y.shape[0],
+            #     config.data.channels,
+            #     config.data.image_size,
+            #     config.data.image_size,
+            #     device=self.device,
+            # )
+            start_T = 500
 
             with torch.no_grad():
                 if sigma_y==0.: # noise-free case, turn to ddnm
-                    x, _ = ddnm_diffusion(x, model, self.betas, self.args.eta, A_funcs, y, cls_fn=cls_fn, classes=classes, config=config)
+                    # print("normal")
+                    x, x0_preds = ddnm_diffusion(x, model, self.betas, self.args.eta, A_funcs, y, start_T, self.args.step_nums, cls_fn=cls_fn, classes=classes, config=config)
                 else: # noisy case, turn to ddnm+
-                    x, _ = ddnm_plus_diffusion(x, model, self.betas, self.args.eta, A_funcs, y, sigma_y, cls_fn=cls_fn, classes=classes, config=config)
+                    # print("plus")
+                    x, x0_preds = ddnm_plus_diffusion(x, model, self.betas, self.args.eta, A_funcs, y, sigma_y, cls_fn=cls_fn, classes=classes, config=config)
 
-            x = [inverse_data_transform(config, xi) for xi in x]
+            x = [inverse_data_transform(config, xi) for xi in x0_preds]
 
 
             for j in range(x[0].size(0)):
                 tvu.save_image(
-                    x[0][j], os.path.join(self.args.image_folder, f"{idx_so_far + j}_{0}.png")
+                    x[0][j], os.path.join(self.args.image_folder, f"{idx_so_far + j}.png")
                 )
                 orig = inverse_data_transform(config, x_orig[j])
                 mse = torch.mean((x[0][j].to(self.device) - orig) ** 2)
                 psnr = 10 * torch.log10(1 / mse)
+                ssim = structural_similarity(
+                    x[0][j].cpu().numpy(),
+                    orig.squeeze(0).cpu().numpy(),
+                    win_size=21,
+                    channel_axis=0,
+                    data_range=1.0
+                )
                 avg_psnr += psnr
+                avg_ssim += ssim
 
-            idx_so_far += y.shape[0]
+                idx_so_far += y.shape[0]
 
-            pbar.set_description("PSNR: %.2f" % (avg_psnr / (idx_so_far - idx_init)))
+                pbar.set_description("PSNR: %.2f, SSIM: %.2f" % (avg_psnr / (idx_so_far - idx_init), avg_ssim / (idx_so_far - idx_init)))
+                
+                # print(f"Exp: {self.args.path_y}_{self.args.deg}, Nums of step: {self.args.step_nums}, PSNR: {avg_psnr:.3f}, SSIM: {avg_ssim:.3f}, Number of samples: {idx_so_far - idx_init}\n")
 
         avg_psnr = avg_psnr / (idx_so_far - idx_init)
+        avg_ssim = avg_ssim / (idx_so_far - idx_init)
+        print()
         print("Total Average PSNR: %.2f" % avg_psnr)
+        print("Total Average SSIM: %.2f" % avg_ssim)
         print("Number of samples: %d" % (idx_so_far - idx_init))
+
+        
+        with open("output.txt", "a") as f:
+            f.write(f"Exp: {self.args.path_y}_{self.args.deg}, steps: {self.args.step_nums}, PSNR: {avg_psnr:.3f}, SSIM: {avg_ssim:.3f}, Number of samples: {idx_so_far - idx_init}\n")
+    
+    
 
 # Code form RePaint   
 def get_schedule_jump(T_sampling, travel_length, travel_repeat):

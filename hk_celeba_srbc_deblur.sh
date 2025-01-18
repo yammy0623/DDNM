@@ -1,11 +1,18 @@
+export CUDA_VISIBLE_DEVICES=1
 INPUT_ROOT="/tmp2/ICML2025"
 EXP="/tmp2/ICML2025/ddnm"
-IMAGE_FOLDER="/tmp2/ICML2025/ddnm/imagenet/celeba_sr_bc_4"
+IMAGE_FOLDER="/tmp2/ICML2025/ddnm/celeba"
+python main.py --ni --config  celeba_hq.yml --exp $EXP --path_y  celeba_hq --eta 0.85 --deg "sr_bicubic" --deg_scale 4 --sigma_y 0. -i $IMAGE_FOLDER --input_root $INPUT_ROOT --step_nums 5
+python main.py --ni --config  celeba_hq.yml --exp $EXP --path_y  celeba_hq --eta 0.85 --deg "sr_bicubic" --deg_scale 4 --sigma_y 0. -i $IMAGE_FOLDER --input_root $INPUT_ROOT --step_nums 10
+python main.py --ni --config  celeba_hq.yml --exp $EXP --path_y  celeba_hq --eta 0.85 --deg "sr_bicubic" --deg_scale 4 --sigma_y 0. -i $IMAGE_FOLDER --input_root $INPUT_ROOT --step_nums 20
+
+python main.py --ni --config  celeba_hq.yml --exp $EXP --path_y  celeba_hq --eta 0.85 --deg "deblur_gauss" --sigma_y 0. -i $IMAGE_FOLDER --input_root $INPUT_ROOT --step_nums 5
+python main.py --ni --config  celeba_hq.yml --exp $EXP --path_y  celeba_hq --eta 0.85 --deg "deblur_gauss" --sigma_y 0. -i $IMAGE_FOLDER --input_root $INPUT_ROOT --step_nums 10
+python main.py --ni --config  celeba_hq.yml --exp $EXP --path_y  celeba_hq --eta 0.85 --deg "deblur_gauss" --sigma_y 0. -i $IMAGE_FOLDER --input_root $INPUT_ROOT --step_nums 20
 
 ## Experiments on CelebA ##
 # noise-free tasks
 
-python main.py --ni --config imagenet_256.yml --exp $EXP --path_y imagenet --eta 0.85 --deg "sr_bicubic" --deg_scale 4 --sigma_y 0. -i $IMAGE_FOLDER --input_root $INPUT_ROOT --start_T 500
 
 # python main.py --ni --config celeba_hq.yml --exp $EXP --path_y celeba_hq --eta 0.85 --deg "sr_bicubic" --deg_scale 4 --sigma_y 0. -i $IMAGE_FOLDER --input_root $INPUT_ROOT
 

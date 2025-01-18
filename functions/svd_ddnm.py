@@ -16,14 +16,28 @@ def inverse_data_transform(x):
     x = (x + 1.0) / 2.0
     return torch.clamp(x, 0.0, 1.0)
 
-def ddnm_diffusion(x, model, b, eta, A_funcs, y, cls_fn=None, classes=None, config=None):
-    with torch.no_grad():
+def get_noisy_x(next_t, b, x0_t_hat):
+    next_t = next_t.to('cuda')
+    x0_t_hat = x0_t_hat.to('cuda')
+    at_next = compute_alpha(b, next_t.long())
+    xt_next = at_next.sqrt() * x0_t_hat + torch.randn_like(x0_t_hat) * (1 - at_next).sqrt()
+    return xt_next
 
+def ddnm_diffusion(x, model, b, eta, A_funcs, y, start_T, step_nums, cls_fn=None, classes=None, config=None):
+    with torch.no_grad():
+        
         # setup iteration variables
-        skip = config.diffusion.num_diffusion_timesteps//config.time_travel.T_sampling
+        # skip = config.diffusion.num_diffusion_timesteps//config.time_travel.T_sampling # 1000
+        
+        
+        skip = start_T // step_nums
+        config.time_travel.T_sampling = step_nums
+        # skip = config.diffusion.num_diffusion_timesteps//step_nums
+        # print(skip)
         n = x.size(0)
         x0_preds = []
-        xs = [x]
+        # xs = [x]
+        xs = []
 
         # generate time schedule
         times = get_schedule_jump(config.time_travel.T_sampling, 
@@ -31,18 +45,29 @@ def ddnm_diffusion(x, model, b, eta, A_funcs, y, cls_fn=None, classes=None, conf
                                config.time_travel.travel_repeat,
                               )
         time_pairs = list(zip(times[:-1], times[1:]))
-        
+        # print(time_pairs)
+
         # reverse diffusion sampling
+        init = True
         for i, j in tqdm(time_pairs):
             i, j = i*skip, j*skip
             if j<0: j=-1 
-
+            # print(f"\ni, j = {i}, {j}")
             if j < i: # normal sampling 
                 t = (torch.ones(n) * i).to(x.device)
                 next_t = (torch.ones(n) * j).to(x.device)
+                # print(t)
+                # print(next_t)
                 at = compute_alpha(b, t.long())
                 at_next = compute_alpha(b, next_t.long())
+                if init:
+                    # print("\n init")
+                    init = False
+                    xt = get_noisy_x(t, b, x.to('cuda'))
+                    xs.append(xt)
+
                 xt = xs[-1].to('cuda')
+
                 if cls_fn == None:
                     et = model(xt, t)
                 else:
