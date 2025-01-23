@@ -167,15 +167,22 @@ def get_dataset(args, config):
         # only use validation dataset here
         if config.data.subset_1k:
             print('here')        
-        
             from datasets.imagenet_subset import ImageDataset
-            train_dataset = ImageDataset(os.path.join(args.input_root, 'ImageNet', 'train'),
+            dataset = None
+            # print(os.path.join(args.input_root, 'ImageNet', 'imagenet'))
+            # print(os.path.join(args.input_root, 'imagenet_val_1k.txt'))
+            test_dataset = ImageDataset(os.path.join(args.input_root, 'ImageNet', 'imagenet'),
+                     os.path.join(args.input_root, 'imagenet_val_1k.txt'),
                      image_size=config.data.image_size,
                      normalize=False)
-            test_dataset = ImageDataset(os.path.join(args.input_root, 'ImageNet', 'val'),
-                     image_size=config.data.image_size,
-                     normalize=False)
-            dataset = train_dataset
+            print(test_dataset)
+            # train_dataset = ImageDataset(os.path.join(args.input_root, 'ImageNet', 'train'),
+            #          image_size=config.data.image_size,
+            #          normalize=False)
+            # test_dataset = ImageDataset(os.path.join(args.input_root, 'ImageNet', 'val'),
+            #          image_size=config.data.image_size,
+            #          normalize=False)
+            # dataset = train_dataset
             # dataset = ImageDataset(os.path.join(args.exp, 'datasets', 'imagenet', 'imagenet'),
             #          os.path.join(args.exp, 'imagenet_val_1k.txt'),
             #          image_size=config.data.image_size,

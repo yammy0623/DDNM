@@ -3,6 +3,7 @@ from tqdm import tqdm
 import torchvision.utils as tvu
 import torchvision
 import os
+from datasets import get_dataset, data_transform, inverse_data_transform
 
 class_num = 951
 
@@ -12,9 +13,9 @@ def compute_alpha(beta, t):
     a = (1 - beta).cumprod(dim=0).index_select(0, t + 1).view(-1, 1, 1, 1)
     return a
 
-def inverse_data_transform(x):
-    x = (x + 1.0) / 2.0
-    return torch.clamp(x, 0.0, 1.0)
+# def inverse_data_transform(x):
+#     x = (x + 1.0) / 2.0
+#     return torch.clamp(x, 0.0, 1.0)
 
 def get_noisy_x(next_t, b, x0_t_hat):
     next_t = next_t.to('cuda')
@@ -23,7 +24,7 @@ def get_noisy_x(next_t, b, x0_t_hat):
     xt_next = at_next.sqrt() * x0_t_hat + torch.randn_like(x0_t_hat) * (1 - at_next).sqrt()
     return xt_next
 
-def ddnm_diffusion(x, model, b, eta, A_funcs, y, start_T, step_nums, cls_fn=None, classes=None, config=None):
+def ddnm_diffusion(x, model, b, eta, A_funcs, y, start_T, step_nums, start_with, isSavefig, cls_fn=None, classes=None, config=None):
     with torch.no_grad():
         
         # setup iteration variables
@@ -49,6 +50,8 @@ def ddnm_diffusion(x, model, b, eta, A_funcs, y, start_T, step_nums, cls_fn=None
 
         # reverse diffusion sampling
         init = True
+        if not start_with == "y":
+            xs = [x]
         for i, j in tqdm(time_pairs):
             i, j = i*skip, j*skip
             if j<0: j=-1 
@@ -60,11 +63,14 @@ def ddnm_diffusion(x, model, b, eta, A_funcs, y, start_T, step_nums, cls_fn=None
                 # print(next_t)
                 at = compute_alpha(b, t.long())
                 at_next = compute_alpha(b, next_t.long())
-                if init:
-                    # print("\n init")
+
+                if (start_with == "y_addnoise" or start_with == "rand_addnoise") and init:
+                    print("\n init")
                     init = False
                     xt = get_noisy_x(t, b, x.to('cuda'))
                     xs.append(xt)
+                    if isSavefig:
+                        savefig(config, xt, "./images/xt_init.png")
 
                 xt = xs[-1].to('cuda')
 
@@ -99,6 +105,11 @@ def ddnm_diffusion(x, model, b, eta, A_funcs, y, start_T, step_nums, cls_fn=None
                 xt_next = at_next.sqrt() * x0_t + torch.randn_like(x0_t) * (1 - at_next).sqrt()
 
                 xs.append(xt_next.to('cpu'))
+            
+            if isSavefig:
+                savefig(config, xt_next, "./images/xt_next.png")
+                savefig(config, x0_t, "./images/x0_t.png")
+
 
     return [xs[-1]], [x0_preds[-1]]
 
@@ -229,3 +240,8 @@ def _check_times(times, t_0, T_sampling):
     for t in times:
         assert t >= t_0, (t, t_0)
         assert t <= T_sampling, (t, T_sampling)
+
+
+def savefig(config, x, name):
+    x = inverse_data_transform(config, x).to("cpu")
+    tvu.save_image(x.to('cpu'), name)

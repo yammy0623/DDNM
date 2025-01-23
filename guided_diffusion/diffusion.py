@@ -20,6 +20,7 @@ from guided_diffusion.script_util import create_model, create_classifier, classi
 import random
 
 from scipy.linalg import orth
+import csv
 
 
 def get_gaussian_noisy_img(img, noise_level):
@@ -549,10 +550,14 @@ class Diffusion(object):
 
         self.args.image_folder = os.path.join(self.args.image_folder, self.args.path_y + "_" + self.args.deg + "_step" + str(self.args.step_nums))
         print(f'Save to {self.args.image_folder}') 
+        isSavefig = False
         for x_orig, classes in pbar:
             x_orig = x_orig.to(self.device)
             x_orig = data_transform(self.config, x_orig)
-
+            
+            if isSavefig:
+                savefig(config, x_orig, "./images/x_orig.jpg")
+            
             y = A_funcs.A(x_orig)
             
             b, hwc = y.size()
@@ -574,7 +579,17 @@ class Diffusion(object):
 
             Apy = A_funcs.A_pinv(y).view(y.shape[0], config.data.channels, self.config.data.image_size,
                                                 self.config.data.image_size)
-            x = Apy
+            
+            if self.args.start_with == "y_addnoise":
+                x = Apy
+            else:
+                x = torch.randn(
+                    y.shape[0],
+                    config.data.channels,
+                    config.data.image_size,
+                    config.data.image_size,
+                    device=self.device,
+                )
 
             if deg[:6] == 'deblur':
                 Apy = y.view(y.shape[0], config.data.channels, self.config.data.image_size,
@@ -595,20 +610,12 @@ class Diffusion(object):
             #         os.path.join(self.args.image_folder, f"Apy/orig_{idx_so_far + i}.png")
             #     )
 
-            #Start DDIM
-            # x = torch.randn(
-            #     y.shape[0],
-            #     config.data.channels,
-            #     config.data.image_size,
-            #     config.data.image_size,
-            #     device=self.device,
-            # )
-            start_T = 500
+            start_T = self.args.start_T
 
             with torch.no_grad():
                 if sigma_y==0.: # noise-free case, turn to ddnm
                     # print("normal")
-                    x, x0_preds = ddnm_diffusion(x, model, self.betas, self.args.eta, A_funcs, y, start_T, self.args.step_nums, cls_fn=cls_fn, classes=classes, config=config)
+                    x, x0_preds = ddnm_diffusion(x, model, self.betas, self.args.eta, A_funcs, y, start_T, self.args.step_nums, self.args.start_with, isSavefig, cls_fn=cls_fn, classes=classes, config=config)
                 else: # noisy case, turn to ddnm+
                     # print("plus")
                     x, x0_preds = ddnm_plus_diffusion(x, model, self.betas, self.args.eta, A_funcs, y, sigma_y, cls_fn=cls_fn, classes=classes, config=config)
@@ -617,6 +624,7 @@ class Diffusion(object):
 
 
             for j in range(x[0].size(0)):
+                # if isSavefig:
                 tvu.save_image(
                     x[0][j], os.path.join(self.args.image_folder, f"{idx_so_far + j}.png")
                 )
@@ -635,10 +643,21 @@ class Diffusion(object):
 
                 idx_so_far += y.shape[0]
 
-                pbar.set_description("PSNR: %.2f, SSIM: %.2f" % (avg_psnr / (idx_so_far - idx_init), avg_ssim / (idx_so_far - idx_init)))
-                
+            pbar.set_description("PSNR: %.2f, SSIM: %.2f" % (avg_psnr / (idx_so_far - idx_init), avg_ssim / (idx_so_far - idx_init)))
+            print("done")
                 # print(f"Exp: {self.args.path_y}_{self.args.deg}, Nums of step: {self.args.step_nums}, PSNR: {avg_psnr:.3f}, SSIM: {avg_ssim:.3f}, Number of samples: {idx_so_far - idx_init}\n")
-
+            # with open("output.csv", "a", newline="") as f:
+            #     writer = csv.writer(f)
+            #     # 寫入一行數據到 CSV
+            #     writer.writerow([
+            #         f"{self.args.path_y}_{self.args.deg}",  # Experiment
+            #         f"{self.args.start_with}",              # start_with
+            #         self.args.start_T,                      # start T
+            #         self.args.step_nums,                   # Steps
+            #         f"{avg_psnr:.3f}",                     # PSNR
+            #         f"{avg_ssim:.3f}",                     # SSIM
+            #         idx_so_far - idx_init                  # Number of samples
+            #     ])
         avg_psnr = avg_psnr / (idx_so_far - idx_init)
         avg_ssim = avg_ssim / (idx_so_far - idx_init)
         print()
@@ -650,7 +669,18 @@ class Diffusion(object):
         with open("output.txt", "a") as f:
             f.write(f"Exp: {self.args.path_y}_{self.args.deg}, steps: {self.args.step_nums}, PSNR: {avg_psnr:.3f}, SSIM: {avg_ssim:.3f}, Number of samples: {idx_so_far - idx_init}\n")
     
-    
+        with open("output.csv", "a", newline="") as f:
+            writer = csv.writer(f)
+            # 寫入一行數據到 CSV
+            writer.writerow([
+                f"{self.args.path_y}_{self.args.deg}",  # Experiment
+                f"{self.args.start_with}",              # start_with
+                self.args.start_T,                      # start T
+                self.args.step_nums,                   # Steps
+                f"{avg_psnr:.3f}",                     # PSNR
+                f"{avg_ssim:.3f}",                     # SSIM
+                idx_so_far - idx_init                  # Number of samples
+            ])
 
 # Code form RePaint   
 def get_schedule_jump(T_sampling, travel_length, travel_repeat):
@@ -696,3 +726,8 @@ def compute_alpha(beta, t):
     beta = torch.cat([torch.zeros(1).to(beta.device), beta], dim=0)
     a = (1 - beta).cumprod(dim=0).index_select(0, t + 1).view(-1, 1, 1, 1)
     return a
+
+
+def savefig(config, x, name):
+    x = inverse_data_transform(config, x).to("cpu")
+    tvu.save_image(x.to('cpu'), name)

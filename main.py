@@ -85,8 +85,9 @@ def parse_args_and_config():
         action="store_true"
     )
     parser.add_argument("--input_root", type=str, default="/tmp2/ICML2025", help="The root folder of input images")
-    # parser.add_argument("--eval_model_name", type=str, default="new_SR_2agent_A2C_10")
+    parser.add_argument("--start_T", type=int, default=1000)
     parser.add_argument("--step_nums", type=int, default=5)
+    parser.add_argument("--start_with", type=str, default="y_addnoise", help="y_addnoise | rand | rand_addnoise")
     
 
     args = parser.parse_args()
