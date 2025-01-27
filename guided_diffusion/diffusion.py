@@ -625,9 +625,10 @@ class Diffusion(object):
 
             for j in range(x[0].size(0)):
                 # if isSavefig:
-                tvu.save_image(
-                    x[0][j], os.path.join(self.args.image_folder, f"{idx_so_far + j}.png")
-                )
+                if j == 1:
+                    tvu.save_image(
+                        x[0][j], os.path.join(self.args.image_folder, "result", f"{self.args.deg}_{self.args.start_with}_start_{self.args.start_T}_{idx_so_far + j}.png")
+                    )
                 orig = inverse_data_transform(config, x_orig[j])
                 mse = torch.mean((x[0][j].to(self.device) - orig) ** 2)
                 psnr = 10 * torch.log10(1 / mse)

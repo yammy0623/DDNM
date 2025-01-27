@@ -7,7 +7,7 @@ STEP_NUMS=5
 export CUDA_VISIBLE_DEVICES=0
 
 for START_WITH in "y_addnoise" "rand_addnoise" "rand"; do
-    for START_T in $(seq 1000 -100 100); do
+    for START_T in $(seq 900 -200 100); do
         echo "Running with START_T=$START_T and START_WITH=$START_WITH"
         python main.py --ni --config imagenet_256.yml --exp $EXP --path_y imagenet --eta 0.85 --deg "inpainting" --sigma_y 0. -i $IMAGE_FOLDER --input_root $INPUT_ROOT --start_T $START_T --step_nums $STEP_NUMS --start_with $START_WITH
         # python main.py --ni --config imagenet_256.yml --exp $EXP --path_y imagenet --eta 0.85 --deg "sr_bicubic" --deg_scale 4 --sigma_y 0. -i $IMAGE_FOLDER --input_root $INPUT_ROOT --start_T $START_T --step_nums $STEP_NUMS --start_with $START_WITH
@@ -17,7 +17,7 @@ for START_WITH in "y_addnoise" "rand_addnoise" "rand"; do
 done
 
 
-for START_WITH in "y_addnoise" "rand_addnoise" "rand"; do
+for START_WITH in "rand_addnoise" "rand"; do
     for START_T in $(seq 1000 -100 100); do
         echo "Running with START_T=$START_T and START_WITH=$START_WITH"
         # python main.py --ni --config imagenet_256.yml --exp $EXP --path_y imagenet --eta 0.85 --deg "inpainting" --sigma_y 0. -i $IMAGE_FOLDER --input_root $INPUT_ROOT --start_T $START_T --step_nums $STEP_NUMS --start_with $START_WITH
